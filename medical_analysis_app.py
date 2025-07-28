@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt # Needed for observational analysis plots
 import seaborn as sns # Needed for observational analysis plots
 
 # --- Common Page Configuration ---
-st.set_page_config(layout="wide", page_title="Medical Data Analysis Hub")
+st.set_page_config(layout="wide", page_title="Medical Data Analysis Hub 🩺")
 
 # --- Home Page ---
 def home_page():
@@ -22,14 +22,21 @@ def home_page():
     This tool helps you analyze clinical data with ease, even with minimal statistical and coding knowledge.
     """)
 
+    st.markdown("---") # Visual separator
+
     st.header("1. Choose Your Analysis Type")
+    st.write("Select the specialized analysis module you wish to access:")
     analysis_type = st.radio(
         "Select the type of analysis you want to perform:",
         ("Meta-Analysis", "Observational Data Analysis"),
-        key="analysis_type_selection"
+        key="analysis_type_selection",
+        horizontal=True # Display radio buttons horizontally
     )
 
+    st.markdown("---") # Visual separator
+
     st.header("2. Upload Your Data File")
+    st.write("Please upload your dataset. The application supports CSV and Excel (XLSX, XLS) formats.")
     uploaded_file = st.file_uploader(
         "Upload your CSV or Excel file (XLSX, XLS)",
         type=["csv", "xlsx", "xls"],
@@ -45,6 +52,8 @@ def run_meta_analysis_app(df_raw):
     This section allows you to visualize the proportion of RVNA >0.5IU/L or Adverse Events
     for Intervention and Control groups across different studies, and perform meta-analysis.
     """)
+
+    st.markdown("---") # Visual separator
 
     # --- Data Preprocessing for Meta-Analysis ---
     # Define the new column names for the Meta-Analysis data structure
@@ -70,7 +79,7 @@ def run_meta_analysis_app(df_raw):
     # This check is crucial for the meta-analysis part as it expects a very specific column structure.
     expected_num_cols_meta = len(meta_analysis_column_names_list)
     if len(df_meta.columns) != expected_num_cols_meta:
-        st.warning(f"The uploaded file does not seem to have the expected number of columns for Meta-Analysis. "
+        st.error(f"**Data Format Mismatch for Meta-Analysis:** The uploaded file does not seem to have the expected number of columns for Meta-Analysis. "
                    f"Expected {expected_num_cols_meta} columns, but found {len(df_meta.columns)}. "
                    "Please ensure your file matches the required data structure for Meta-Analysis "
                    "(e.g., 'Rabies.xlsx - Sheet2.csv').")
@@ -226,6 +235,7 @@ def run_meta_analysis_app(df_raw):
         total_ctrl_events = df_for_meta['c'].sum()
         total_ctrl_pop = df_for_meta['n0'].sum()
 
+
         return {
             'fixed_effect': {
                 'RR': RR_fixed_overall,
@@ -249,8 +259,8 @@ def run_meta_analysis_app(df_raw):
                 'tau_squared': tau_squared
             },
             'study_weights': {
-                'fixed': fixed_weights,
-                'random': random_weights
+                'fixed': fixed_weights, # These are Series, will be handled in display
+                'random': random_weights # These are Series, will be handled in display
             }
         }
 
@@ -259,11 +269,16 @@ def run_meta_analysis_app(df_raw):
     tabs = st.tabs(tab_titles)
 
     with tabs[0]: # Statistical Analysis Tab
+        st.subheader("Core Statistical Analysis")
+        st.write("Explore different visualizations and regression for your meta-analysis data.")
+        st.markdown("---")
+
         # Streamlit UI for Plot Type Selection within Statistical Analysis
         plot_type_meta = st.radio(
             "Choose Plot Type for Statistical Analysis:",
             ("Bar Graph", "Forest Plot", "RVNA Proportion vs. Days Regression"),
-            key="meta_plot_type"
+            key="meta_plot_type",
+            horizontal=True
         )
 
         # Streamlit UI for Data Selection (common for Statistical Analysis plots, except regression)
@@ -280,6 +295,7 @@ def run_meta_analysis_app(df_raw):
                 ),
                 key="meta_graph_option"
             )
+            st.markdown("---")
 
         # --- Plotting Logic for Statistical Analysis ---
         if plot_type_meta == "Bar Graph":
@@ -331,22 +347,45 @@ def run_meta_analysis_app(df_raw):
                 df_plot = df_meta[['Study', 'Local_AE_Intervention_Proportion', 'Local_AE_Control_Proportion']].copy()
                 df_plot = df_plot.rename(columns={
                     'Local_AE_Intervention_Proportion': 'Intervention',
-                    'Local_AE_Control_Proportion': 'Control'
+                    'Control_Proportion_Control': 'Control' # Corrected from 'Control_Proportion_Control' to 'Control'
                 })
                 title = 'Proportion of Local Adverse Events: Intervention vs. Control'
                 y_axis_label = 'Proportion of Local Adverse Events'
 
+
+            # Melt the DataFrame for Plotly Express to create grouped bars
             df_melted = df_plot.melt(id_vars=['Study'], var_name='Group', value_name='Proportion')
+
+            # Remove NaN values from melted DataFrame before plotting, as they can cause issues
+            # This ensures only valid proportion values are plotted for the selected graph.
             df_melted.dropna(subset=['Proportion'], inplace=True)
 
-            if not df_melted.empty:
+            # Create the bar chart using Plotly Express
+            if not df_melted.empty: # Only plot if there's data after dropping NaNs
                 fig = px.bar(
-                    df_melted, x='Study', y='Proportion', color='Group', barmode='group', title=title,
+                    df_melted,
+                    x='Study',
+                    y='Proportion',
+                    color='Group',
+                    barmode='group', # This creates grouped bars for each study
+                    title=title,
                     labels={'Proportion': y_axis_label, 'Study': 'Study'},
-                    color_discrete_map={'Intervention': '#4CAF50', 'Control': '#FFC107'}
+                    color_discrete_map={'Intervention': '#4CAF50', 'Control': '#FFC107'} # Consistent colors
                 )
-                fig.update_layout(xaxis_title="Study", yaxis_title=y_axis_label, xaxis_tickangle=-45, yaxis_range=[0, 1.1], legend_title_text='Group')
+
+                # Customize layout for better readability
+                fig.update_layout(
+                    xaxis_title="Study",
+                    yaxis_title=y_axis_label,
+                    xaxis_tickangle=-45, # Rotate x-axis labels for readability
+                    yaxis_range=[0, 1.1], # Ensure y-axis goes from 0 to 1 (proportion) and slightly above
+                    legend_title_text='Group'
+                )
+
+                # Add text labels on top of the bars for exact values
                 fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')
+
+                # Display the chart in Streamlit
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No data available to plot for the selected visualization option after processing. "
@@ -361,81 +400,175 @@ def run_meta_analysis_app(df_raw):
             selected_outcome_prefix = outcome_prefix_map.get(graph_option_meta)
 
             if selected_outcome_prefix:
-                forest_df = calculate_risk_ratio_and_ci(df_meta, selected_outcome_prefix)
+                forest_df = calculate_risk_ratio_and_ci(df_meta, selected_outcome_prefix) # Use df_meta
 
                 if not forest_df.empty:
                     meta_results = perform_meta_analysis(forest_df)
+
+                    st.subheader(f"Forest Plot: Risk Ratio for {graph_option_meta}")
+                    st.write("This plot visualizes the effect size (Risk Ratio) and its confidence interval for each study, along with the overall meta-analysis results.")
+                    
+                    # --- Forest Plot (main plot) ---
                     fig_forest = go.Figure()
+
+                    # Individual study points with error bars
+                    # Filter forest_df for plotting to only include studies with valid RR
                     forest_df_plot = forest_df.dropna(subset=['RR', 'RR_Lower_CI', 'RR_Upper_CI']).copy()
 
                     fig_forest.add_trace(go.Scatter(
-                        x=forest_df_plot['RR'], y=forest_df_plot['Study'], mode='markers',
-                        marker=dict(color='blue', size=10, symbol='square'),
-                        error_x=dict(type='data', symmetric=False,
-                                     array=forest_df_plot['RR_Upper_CI'] - forest_df_plot['RR'],
-                                     arrayminus=forest_df_plot['RR'] - forest_df_plot['RR_Lower_CI'],
-                                     color='blue', thickness=1.5, width=5),
+                        x=forest_df_plot['RR'],
+                        y=forest_df_plot['Study'],
+                        mode='markers',
+                        marker=dict(color='blue', size=10, symbol='square'), # Square markers for individual studies
+                        error_x=dict(
+                            type='data',
+                            symmetric=False,
+                            array=forest_df_plot['RR_Upper_CI'] - forest_df_plot['RR'],
+                            arrayminus=forest_df_plot['RR'] - forest_df_plot['RR_Lower_CI'], # Corrected column name
+                            color='blue',
+                            thickness=1.5,
+                            width=5
+                        ),
                         name='Individual Studies'
                     ))
 
                     if meta_results:
+                        # Fixed effect diamond
                         if pd.notna(meta_results['fixed_effect']['RR']):
                             fig_forest.add_trace(go.Scatter(
-                                x=[meta_results['fixed_effect']['RR']], y=["Overall (Fixed-effect)"], mode='markers',
-                                marker=dict(symbol='diamond', size=20, color='darkgreen', line=dict(width=1, color='darkgreen')),
-                                error_x=dict(type='data', symmetric=False,
-                                             array=[meta_results['fixed_effect']['Upper_CI'] - meta_results['fixed_effect']['RR']],
-                                             arrayminus=[meta_results['fixed_effect']['RR'] - meta_results['fixed_effect']['Lower_CI']],
-                                             color='darkgreen', thickness=2, width=10),
+                                x=[meta_results['fixed_effect']['RR']],
+                                y=["Overall (Fixed-effect)"], # Use a distinct label for the overall effect
+                                mode='markers',
+                                marker=dict(
+                                    symbol='diamond',
+                                    size=20, # Larger diamond
+                                    color='darkgreen',
+                                    line=dict(width=1, color='darkgreen')
+                                ),
+                                error_x=dict(
+                                    type='data',
+                                    symmetric=False,
+                                    array=[meta_results['fixed_effect']['Upper_CI'] - meta_results['fixed_effect']['RR']],
+                                    arrayminus=[meta_results['fixed_effect']['RR'] - meta_results['fixed_effect']['Lower_CI']],
+                                    color='darkgreen',
+                                    thickness=2,
+                                    width=10
+                                ),
                                 name='Overall (Fixed-effect)'
                             ))
+
+                        # Random effect diamond
                         if pd.notna(meta_results['random_effects']['RR']):
                             fig_forest.add_trace(go.Scatter(
-                                x=[meta_results['random_effects']['RR']], y=["Overall (Random-effects)"], mode='markers',
-                                marker=dict(symbol='diamond', size=20, color='purple', line=dict(width=1, color='purple')),
-                                error_x=dict(type='data', symmetric=False,
-                                             array=[meta_results['random_effects']['Upper_CI'] - meta_results['random_effects']['RR']],
-                                             arrayminus=[meta_results['random_effects']['RR'] - meta_results['random_effects']['Lower_CI']],
-                                             color='purple', thickness=2, width=10),
+                                x=[meta_results['random_effects']['RR']],
+                                y=["Overall (Random-effects)"], # Use a distinct label for the overall effect
+                                mode='markers',
+                                marker=dict(
+                                    symbol='diamond',
+                                    size=20, # Larger diamond
+                                    color='purple',
+                                    line=dict(width=1, color='purple')
+                                ),
+                                error_x=dict(
+                                    type='data',
+                                    symmetric=False,
+                                    array=[meta_results['random_effects']['Upper_CI'] - meta_results['random_effects']['RR']],
+                                    arrayminus=[meta_results['random_effects']['RR'] - meta_results['random_effects']['Lower_CI']],
+                                    color='purple',
+                                    thickness=2,
+                                    width=10
+                                ),
                                 name='Overall (Random-effects)'
                             ))
 
-                    fig_forest.add_shape(type="line", x0=1, x1=1, y0=0, y1=1, xref='x', yref='paper', line=dict(color="red", width=1, dash="dash"))
-                    fig_forest.add_annotation(x=1, y=1.02, xref="x", yref="paper", text="No Effect", showarrow=False, font=dict(color="red", size=10), xanchor="left")
-                    fig_forest.update_layout(title=f'Forest Plot: Risk Ratio for {graph_option_meta}', xaxis_title='Risk Ratio (Intervention vs. Control)', yaxis_title='Study', yaxis_autorange="reversed", hovermode="y unified", height=600, showlegend=False)
+                    # Add vertical line at RR = 1 (no effect)
+                    fig_forest.add_shape(
+                        type="line",
+                        x0=1, x1=1, y0=0, y1=1,
+                        xref='x', yref='paper', # Target the plot's x-axis and span full paper height
+                        line=dict(color="red", width=1, dash="dash"),
+                    )
 
-                    y_axis_categories = forest_df_plot['Study'].tolist()
-                    if meta_results and pd.notna(meta_results['fixed_effect']['RR']): y_axis_categories.append("Overall (Fixed-effect)")
-                    if meta_results and pd.notna(meta_results['random_effects']['RR']): y_axis_categories.append("Overall (Random-effects)")
+                    # Add annotation for "No Effect"
+                    fig_forest.add_annotation(
+                        x=1, y=1.02, # Position it slightly above the top of the plot
+                        xref="x", yref="paper", # Target the plot's x-axis and paper coordinates for y
+                        text="No Effect",
+                        showarrow=False,
+                        font=dict(color="red", size=10),
+                        xanchor="left" # Anchor text to the left of x=1
+                    )
+
+
+                    # Customize layout for the forest plot
+                    fig_forest.update_layout(
+                        title=f'Forest Plot: Risk Ratio for {graph_option_meta}',
+                        xaxis_title='Risk Ratio (Intervention vs. Control)',
+                        yaxis_title='Study',
+                        yaxis_autorange="reversed", # Studies from top to bottom
+                        hovermode="y unified",
+                        height=600, # Adjust height as needed
+                        showlegend=False # Hide individual trace legends
+                    )
+
+                    # Set y-axis categories including overall labels
+                    y_axis_categories = forest_df_plot['Study'].tolist() # Only studies that are plotted
+                    if meta_results and pd.notna(meta_results['fixed_effect']['RR']):
+                        y_axis_categories.append("Overall (Fixed-effect)")
+                    if meta_results and pd.notna(meta_results['random_effects']['RR']):
+                        y_axis_categories.append("Overall (Random-effects)")
                     fig_forest.update_yaxes(categoryorder='array', categoryarray=y_axis_categories)
 
-                    valid_rrs = forest_df_plot['RR_Lower_CI'].dropna().tolist() + forest_df_plot['RR_Upper_CI'].dropna().tolist()
-                    if meta_results and pd.notna(meta_results['fixed_effect']['Lower_CI']): valid_rrs.extend([meta_results['fixed_effect']['Lower_CI'], meta_results['fixed_effect']['Upper_CI']])
-                    if meta_results and pd.notna(meta_results['random_effects']['Lower_CI']): valid_rrs.extend([meta_results['random_effects']['Lower_CI'], meta_results['random_effects']['Upper_CI']])
+
+                    # Set x-axis range dynamically based on data, but ensure 1 is visible
+                    valid_rrs = forest_df_plot['RR_Lower_CI'].dropna().tolist() + \
+                                forest_df_plot['RR_Upper_CI'].dropna().tolist()
                     
+                    if meta_results and pd.notna(meta_results['fixed_effect']['Lower_CI']):
+                        valid_rrs.append(meta_results['fixed_effect']['Lower_CI'])
+                        valid_rrs.append(meta_results['fixed_effect']['Upper_CI'])
+                    if meta_results and pd.notna(meta_results['random_effects']['Lower_CI']):
+                        valid_rrs.append(meta_results['random_effects']['Lower_CI'])
+                        valid_rrs.append(meta_results['random_effects']['Upper_CI'])
+
                     if valid_rrs:
                         min_rr_data = min(valid_rrs)
                         max_rr_data = max(valid_rrs)
-                        min_rr = min(min_rr_data * 0.9, 0.9)
-                        max_rr = max(max_rr_data * 1.1, 1.1)
+                        min_rr = min(min_rr_data * 0.9, 0.9) # Ensure 0.9 is visible
+                        max_rr = max(max_rr_data * 1.1, 1.1) # Ensure 1.1 is visible
                     else:
-                        min_rr, max_rr = 0.5, 1.5
+                        min_rr, max_rr = 0.5, 1.5 # Default range if no valid RR data
+
                     fig_forest.update_xaxes(range=[min_rr, max_rr])
+
+
+                    # Display the Forest Plot
                     st.plotly_chart(fig_forest, use_container_width=True)
 
                     st.markdown("---")
                     st.subheader("Detailed Study Data and Meta-Analysis Results")
+                    st.write("This table provides a comprehensive overview of each study's contribution and the overall meta-analysis findings.")
+
                     if meta_results:
+                        # Create a DataFrame for the table display
+                        # Use the original forest_df to include all studies, even if not plotted
                         table_data = forest_df[['Study', 'a', 'n1', 'c', 'n0', 'RR', 'RR_Lower_CI', 'RR_Upper_CI']].copy()
+
+                        # Add formatted RR and CI
                         table_data['RR (95% CI)'] = table_data.apply(
                             lambda row: f"{row['RR']:.2f} [{row['RR_Lower_CI']:.2f}, {row['RR_Upper_CI']:.2f}]"
                                         if pd.notna(row['RR']) and pd.notna(row['RR_Lower_CI']) and pd.notna(row['RR_Upper_CI'])
                                         else "N/A", axis=1
                         )
+
+                        # Add weights for individual studies, mapping back to original forest_df index
+                        # Ensure weights are aligned with the original forest_df for display
                         table_data['Weight (Fixed)'] = ""
                         table_data['Weight (Random)'] = ""
 
+                        # Populate weights only for studies that were included in meta-analysis
                         if not meta_results['study_weights']['fixed'].empty:
+                            # Iterate through the studies that were part of the meta-analysis calculation
                             for meta_idx, study_row in forest_df_plot.iterrows():
                                 original_df_idx = forest_df[forest_df['Study'] == study_row['Study']].index
                                 if not original_df_idx.empty:
@@ -446,6 +579,7 @@ def run_meta_analysis_app(df_raw):
                                         table_data.loc[original_df_idx[0], 'Weight (Fixed)'] = "N/A"
                         
                         if not meta_results['study_weights']['random'].empty:
+                            # Iterate through the studies that were part of the meta-analysis calculation
                             for meta_idx, study_row in forest_df_plot.iterrows():
                                 original_df_idx = forest_df[forest_df['Study'] == study_row['Study']].index
                                 if not original_df_idx.empty:
@@ -456,6 +590,7 @@ def run_meta_analysis_app(df_raw):
                                         table_data.loc[original_df_idx[0], 'Weight (Random)'] = "N/A"
 
 
+                        # Prepare overall rows
                         overall_fixed_row = {
                             'Study': "Overall (Fixed-effect)",
                             'a': int(meta_results['fixed_effect']['Total_Events_Int']) if pd.notna(meta_results['fixed_effect']['Total_Events_Int']) else "",
@@ -470,20 +605,46 @@ def run_meta_analysis_app(df_raw):
                         }
                         overall_random_row = {
                             'Study': "Overall (Random-effects)",
-                            'a': "", 'n1': "", 'c': "", 'n0': "",
+                            'a': "", 'n1': "", 'c': "", 'n0': "", # N/A for these columns in overall random
                             'RR': meta_results['random_effects']['RR'].round(2) if pd.notna(meta_results['random_effects']['RR']) else np.nan,
                             'RR_Lower_CI': meta_results['random_effects']['Lower_CI'].round(2) if pd.notna(meta_results['random_effects']['Lower_CI']) else np.nan,
                             'RR_Upper_CI': meta_results['random_effects']['Upper_CI'].round(2) if pd.notna(meta_results['random_effects']['Upper_CI']) else np.nan,
                             'RR (95% CI)': f"{meta_results['random_effects']['RR']:.2f} [{meta_results['random_effects']['Lower_CI']:.2f}, {meta_results['random_effects']['Upper_CI']:.2f}]" if pd.notna(meta_results['random_effects']['RR']) else "N/A",
                             'Weight (Fixed)': "", 'Weight (Random)': "100.0%"
                         }
+
+                        # Append overall rows to the table data
                         table_data = pd.concat([table_data, pd.DataFrame([overall_fixed_row, overall_random_row])], ignore_index=True)
-                        table_data.rename(columns={'a': 'Events (Exp)', 'n1': 'Total (Exp)', 'c': 'Events (Ctrl)', 'n0': 'Total (Ctrl)'}, inplace=True)
-                        display_cols = ['Study', 'Events (Exp)', 'Total (Exp)', 'Events (Ctrl)', 'Total (Ctrl)', 'RR (95% CI)', 'Weight (Fixed)', 'Weight (Random)']
-                        st.dataframe(table_data[display_cols].fillna(''), use_container_width=True)
+
+                        # Rename columns for display
+                        table_data.rename(columns={
+                            'a': 'Events (Exp)',
+                            'n1': 'Total (Exp)',
+                            'c': 'Events (Ctrl)',
+                            'n0': 'Total (Ctrl)'
+                        }, inplace=True)
+
+                        # Select and reorder columns for final display
+                        display_cols = [
+                            'Study', 'Events (Exp)', 'Total (Exp)',
+                            'Events (Ctrl)', 'Total (Ctrl)',
+                            'RR (95% CI)', 'Weight (Fixed)', 'Weight (Random)'
+                        ]
+                        st.dataframe(table_data[display_cols].fillna(''), use_container_width=True) # Fillna for empty strings
+
+                        st.markdown("---")
+                        st.subheader("Heterogeneity Statistics")
+                        st.write("These metrics quantify the variability among study results.")
                         st.markdown(f"**Heterogeneity:** $I^2 = {meta_results['heterogeneity']['I2']:.1f}\\%$, "
                                     f"$\\tau^2 = {meta_results['heterogeneity']['tau_squared']:.2f}$, "
                                     f"p-value = {meta_results['heterogeneity']['p_value']:.3f}")
+                        st.markdown("""
+                        * **$I^2$ (I-squared):** Describes the percentage of total variation across studies that is due to heterogeneity rather than chance.
+                        * **$\\tau^2$ (Tau-squared):** Estimates the variance of the true effect sizes across studies in a random-effects model.
+                        * **p-value:** For Cochran's Q test, a low p-value (e.g., < 0.10) suggests significant heterogeneity.
+                        """)
+
+
                     else:
                         st.warning(f"Could not perform meta-analysis for '{graph_option_meta}'. "
                                    "Table details could not be generated.")
@@ -495,30 +656,57 @@ def run_meta_analysis_app(df_raw):
 
         elif plot_type_meta == "RVNA Proportion vs. Days Regression":
             st.subheader("Regression Analysis: RVNA Proportion vs. Days (Per Study)")
+            st.write("This analysis explores the linear relationship between RVNA proportion and time (in days) for each individual study.")
+            st.markdown("---")
+
+            # Select group for regression
             regression_group_meta = st.selectbox(
                 "Select group for RVNA Proportion vs. Days Regression:",
                 ("Intervention", "Control"),
                 key="meta_regression_group"
             )
+            st.markdown("---")
+
+            # Prepare data for regression
+            # Identify the correct proportion columns based on the selected group
+            
             expected_proportion_cols_for_group_meta = [
-                f'{regression_group_meta}_Proportion_0d', f'{regression_group_meta}_Proportion_14d',
-                f'{regression_group_meta}_Proportion_42d', f'{regression_group_meta}_Proportion_82d'
+                f'{regression_group_meta}_Proportion_0d',
+                f'{regression_group_meta}_Proportion_14d',
+                f'{regression_group_meta}_Proportion_42d',
+                f'{regression_group_meta}_Proportion_82d'
             ]
+
+            # Filter for columns that actually exist in the DataFrame
             actual_proportion_cols_meta = [col for col in expected_proportion_cols_for_group_meta if col in df_meta.columns]
 
             if not actual_proportion_cols_meta:
                 st.warning(f"No RVNA proportion data found for {regression_group_meta} to perform regression analysis. "
                            "Please ensure your uploaded data contains RVNA proportion columns for the selected group.")
             else:
+                # Create a temporary DataFrame for melting
                 df_melt_regression_meta = df_meta[['Study'] + actual_proportion_cols_meta].copy()
+                
+                # Melt the DataFrame
                 df_long_regression_meta = df_melt_regression_meta.melt(
-                    id_vars=['Study'], value_vars=actual_proportion_cols_meta, var_name='Proportion_Type', value_name='Proportion'
+                    id_vars=['Study'],
+                    value_vars=actual_proportion_cols_meta,
+                    var_name='Proportion_Type',
+                    value_name='Proportion'
                 )
+                
+                # Create a mapping for days based on the actual column names
                 day_mapping_meta = {
-                    f'{regression_group_meta}_Proportion_0d': 0, f'{regression_group_meta}_Proportion_14d': 14,
-                    f'{regression_group_meta}_Proportion_42d': 42, f'{regression_group_meta}_Proportion_82d': 82,
+                    f'{regression_group_meta}_Proportion_0d': 0,
+                    f'{regression_group_meta}_Proportion_14d': 14,
+                    f'{regression_group_meta}_Proportion_42d': 42,
+                    f'{regression_group_meta}_Proportion_82d': 82,
                 }
+
+                # Map 'Proportion_Type' to 'Days'
                 df_long_regression_meta['Days'] = df_long_regression_meta['Proportion_Type'].map(day_mapping_meta)
+                
+                # Drop rows where 'Proportion' or 'Days' is NaN (e.g., if original data was missing)
                 df_long_regression_meta.dropna(subset=['Proportion', 'Days'], inplace=True)
 
                 if df_long_regression_meta.empty:
@@ -555,7 +743,10 @@ def run_meta_analysis_app(df_raw):
                         xaxis_title='Days', yaxis_title='Proportion of RVNA >0.5IU/L', hovermode="closest"
                     )
                     st.plotly_chart(fig_regression_meta, use_container_width=True)
+                    
+                    st.markdown("---")
                     st.markdown("### Individual Study Regression Results:")
+                    st.write("This table summarizes the linear regression findings for each study.")
                     if regression_results_list_meta:
                         regression_results_df_meta = pd.DataFrame(regression_results_list_meta)
                         st.dataframe(regression_results_df_meta, use_container_width=True)
@@ -592,6 +783,8 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
     This application performs a multiple linear regression analysis to understand the relationship
     between 'tea in grams', 'therapy duration', and 'change in hemoglobin levels'.
     """)
+
+    st.markdown("---") # Visual separator
 
     # --- Data Preprocessing for Observational Data Analysis ---
     # Re-read the file with header=[0, 1] for observational analysis specific processing
@@ -734,6 +927,8 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
             st.write(df_cleaned.head())
 
             st.subheader("Regression Analysis")
+            st.write("This section presents the results of the multiple linear regression model.")
+            st.markdown("---")
             formula = f"Q('{dependent_var}') ~ Q('{independent_var1}') + Q('{independent_var2}')"
 
             try:
@@ -741,6 +936,7 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
                 st.success("Regression model fitted successfully!")
 
                 st.subheader("Regression Results Summary")
+                st.write("Below is the full statistical summary of the regression model.")
                 st.write(model.summary())
 
                 st.subheader("Key Insights from the Analysis")
@@ -768,10 +964,13 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
                 is statistically significant in predicting the dependent variable.
                 """)
 
-                st.write("##### Coefficients:")
-                st.write(model.params.round(4))
-                st.write("##### P-values:")
-                st.write(model.pvalues.round(4))
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("##### Coefficients:")
+                    st.write(model.params.round(4))
+                with col2:
+                    st.write("##### P-values:")
+                    st.write(model.pvalues.round(4))
 
                 st.markdown("---")
                 st.markdown("#### 3. Interpretation of Variables:")
@@ -814,20 +1013,23 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
 
                 st.markdown("---")
                 st.subheader("Visualizations")
+                st.write("These plots help visualize the relationships between variables and assess the model's assumptions.")
 
-                fig1, ax1 = plt.subplots(figsize=(10, 6))
-                sns.scatterplot(x=independent_var1, y=dependent_var, data=df_cleaned, ax=ax1)
-                ax1.set_title(f'Scatter Plot: {independent_var1} vs. {dependent_var}')
-                ax1.set_xlabel(independent_var1)
-                ax1.set_ylabel(dependent_var)
-                st.pyplot(fig1)
-
-                fig2, ax2 = plt.subplots(figsize=(10, 6))
-                sns.scatterplot(x=independent_var2, y=dependent_var, data=df_cleaned, ax=ax2)
-                ax2.set_title(f'Scatter Plot: {independent_var2} vs. {dependent_var}')
-                ax2.set_xlabel(independent_var2)
-                ax2.set_ylabel(dependent_var)
-                st.pyplot(fig2)
+                col_plot1, col_plot2 = st.columns(2)
+                with col_plot1:
+                    fig1, ax1 = plt.subplots(figsize=(10, 6))
+                    sns.scatterplot(x=independent_var1, y=dependent_var, data=df_cleaned, ax=ax1)
+                    ax1.set_title(f'Scatter Plot: {independent_var1} vs. {dependent_var}')
+                    ax1.set_xlabel(independent_var1)
+                    ax1.set_ylabel(dependent_var)
+                    st.pyplot(fig1)
+                with col_plot2:
+                    fig2, ax2 = plt.subplots(figsize=(10, 6))
+                    sns.scatterplot(x=independent_var2, y=dependent_var, data=df_cleaned, ax=ax2)
+                    ax2.set_title(f'Scatter Plot: {independent_var2} vs. {dependent_var}')
+                    ax2.set_xlabel(independent_var2)
+                    ax2.set_ylabel(dependent_var)
+                    st.pyplot(fig2)
 
                 df_cleaned['residuals'] = model.resid
                 fig3, ax3 = plt.subplots(figsize=(10, 6))
@@ -847,10 +1049,10 @@ def run_observational_analysis_app(uploaded_file_object, uploaded_file_name):
                 st.subheader("Further Considerations")
                 st.markdown("""
                 * **Causation vs. Correlation:** Remember that regression analysis shows correlation, not necessarily causation.
-                  Other unmeasured factors might influence hemoglobin levels.
+                    Other unmeasured factors might influence hemoglobin levels.
                 * **Data Quality:** The quality of the insights heavily depends on the quality and representativeness of your input data.
                 * **Model Assumptions:** Linear regression relies on several assumptions (linearity, independence of errors, homoscedasticity, normality of residuals).
-                  Violations of these assumptions can affect the reliability of the results.
+                    Violations of these assumptions can affect the reliability of the results.
                 * **Outliers:** Extreme values (outliers) in your data can significantly impact the regression results.
                 """)
 
@@ -864,6 +1066,7 @@ def main():
     if uploaded_file is not None:
         st.markdown("---")
         st.subheader("Raw Data Preview (from uploaded file)")
+        st.write("Here's a glimpse of the data you've uploaded:")
         
         # Read the file once for initial preview (assuming single header for simplicity here)
         # The specific analysis functions will handle their own header reading if needed (e.g., header=[0,1])
@@ -877,10 +1080,16 @@ def main():
             else:
                 st.error("Unsupported file type. Please upload a CSV, XLSX, or XLS file.")
                 st.stop()
-            st.dataframe(df_initial_preview.head())
+            
+            # Use st.expander for the raw data preview
+            with st.expander("Click to view Raw Data Preview"):
+                st.dataframe(df_initial_preview.head())
+            
         except Exception as e:
             st.error(f"Error reading the file for initial preview: {e}. Please ensure it's a valid CSV or Excel format.")
             st.stop()
+
+        st.markdown("---") # Visual separator
 
         # Pass the appropriate data/object to the selected analysis function
         if analysis_type == "Meta-Analysis":
