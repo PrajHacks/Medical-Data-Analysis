@@ -16,7 +16,7 @@ st.set_page_config(layout="wide", page_title="Medical Data Analysis Hub 🩺")
 
 # --- Home Page ---
 def home_page():
-    st.title("Medical Data Analysis Hub")
+    st.title("StatEase - Medical Data Analysis Hub")
     st.markdown("""
     Welcome to your user-friendly statistical analysis software designed for medical professionals.
     This tool helps you analyze clinical data with ease, even with minimal statistical and coding knowledge.
